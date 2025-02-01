@@ -1,9 +1,13 @@
 package com.bigranch.android.geoquiz
 
+import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 
 import com.bigranch.android.geoquiz.databinding.ActivityMainBinding
@@ -12,18 +16,16 @@ private const val TAG = "MainActivity"
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
+    private val quizViewModel: QuizViewModel by viewModels()
     private var score = 0
-
-    private val questionBank = listOf(
-        Question(R.string.question_australia, true),
-        Question(R.string.question_oceans, true),
-        Question(R.string.question_mideast, false),
-        Question(R.string.question_africa, false),
-        Question(R.string.question_americas, true),
-        Question(R.string.question_asia, true),
-    )
-
-    private var currentIndex = 0
+    private val cheatLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if(result.resultCode == Activity.RESULT_OK) {
+            quizViewModel.isCheater =
+                result.data?.getBooleanExtra(EXTRA_ANSWER_SHOWN, false) ?: false
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,37 +33,37 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        Log.d(TAG, "Got a QuizViewModel: $quizViewModel")
+
         binding.trueButton.setOnClickListener { view: View ->
             checkAnswer(true)
-            binding.trueButton.isEnabled = false
-            binding.falseButton.isEnabled = false
+            binding.trueButton.isEnabled = !quizViewModel.currentQuestionAnswered
+            binding.falseButton.isEnabled = !quizViewModel.currentQuestionAnswered
         }
 
         binding.falseButton.setOnClickListener { view: View ->
             checkAnswer(false)
-            binding.trueButton.isEnabled = false
-            binding.falseButton.isEnabled = false
+            binding.trueButton.isEnabled = !quizViewModel.currentQuestionAnswered
+            binding.falseButton.isEnabled = !quizViewModel.currentQuestionAnswered
+        }
+
+        binding.cheatButton.setOnClickListener {
+            val answerIsTrue = quizViewModel.currentQuestionAnswer
+            val intent = CheatActivity.newIntent(this, answerIsTrue)
+            cheatLauncher.launch(intent)
         }
 
         binding.nextButton.setOnClickListener {
-            if(currentIndex == questionBank.size - 1){
-                currentIndex = 0
-            } else {
-                currentIndex = (currentIndex + 1) % questionBank.size
-            }
+            quizViewModel.moveToNext()
             updateQuestion()
         }
 
         binding.previousButton.setOnClickListener {
-            if (currentIndex == 0) {
-                currentIndex = questionBank.size - 1
-            } else {
-                currentIndex = (currentIndex - 1) % questionBank.size
-            }
+            quizViewModel.moveToPrevious()
             updateQuestion()
         }
 
-        val questionTextResId = questionBank[currentIndex].textResId
+        val questionTextResId = quizViewModel.currentQuestionText
         binding.questionTextView.setText(questionTextResId)
     }
 
@@ -91,23 +93,24 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateQuestion() {
-        binding.trueButton.isEnabled = questionBank[currentIndex].isAnswered == false
-        binding.falseButton.isEnabled = questionBank[currentIndex].isAnswered == false
-        val questionTextResId = questionBank[currentIndex].textResId
+        binding.trueButton.isEnabled = !quizViewModel.currentQuestionAnswered
+        binding.falseButton.isEnabled = !quizViewModel.currentQuestionAnswered
+        val questionTextResId = quizViewModel.currentQuestionText
         binding.questionTextView.setText(questionTextResId)
     }
 
     private fun checkAnswer(userAnswer: Boolean) {
-        val correctAnswer = questionBank[currentIndex].answer
+        val correctAnswer = quizViewModel.currentQuestionAnswer
 
-        val messageResId = if (userAnswer == correctAnswer) {
-            score++
-            R.string.correct_toast
-        } else {
-            R.string.incorrect_toast
+        val messageResId = when {
+            quizViewModel.isCheater -> R.string.judgement_toast
+            userAnswer == correctAnswer -> R.string.correct_toast
+            else -> R.string.incorrect_toast
         }
+
         Log.d(TAG, "Score: $score")
-        questionBank[currentIndex].isAnswered = true
+        quizViewModel.currentQuestionAnswered = true
+        Log.d(TAG, "Current question answered: ${quizViewModel.currentQuestionAnswered}")
 
         Toast.makeText(
             this,

@@ -39,6 +39,15 @@ android {
 }
 
 dependencies {
+    testImplementation(libs.junit.junit)
+    val core_version = "1.15.0"
+    val appcompat_version = "1.7.0"
+    val lifecycle_version = "2.8.7"
+    val activity_version = "1.9.3"
+    implementation("androidx.core:core-ktx:$core_version")
+    implementation("androidx.appcompat:appcompat-resources:$appcompat_version")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:$lifecycle_version")
+    implementation("androidx.activity:activity-ktx:$activity_version")
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
